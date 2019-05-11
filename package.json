@@ -1,0 +1,16 @@
+{
+  "name": "dat_client",
+  "version": "1.0.0",
+  "description": "A script that connects to a DAT server and allows the user to access the REST api from the server",
+  "main": "dat_client.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Mantaseus",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.16.4",
+    "simple-peer": "^9.3.0",
+    "wrtc": "^0.4.0"
+  }
+}
