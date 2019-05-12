@@ -1,19 +1,23 @@
 const path = require('path');
 
-const server = require('express')();
+const config = require('./config.json');
 
 const wrtc = require('wrtc');
 const Peer = require('simple-peer');
+
+const Discord = require('discord.js');
+
+const server = require('express')();
+
+const fetch = require('node-fetch');
 
 // GLOBALS ----------------------------------------------------------------------------------------
 
 const HTTP_PORT = 2098;
 
-const peerClient = new Peer({
-    initiator: true,
-    wrtc: wrtc,
-    trickle: false
-});
+// This will be initialized later once the signalling stuff is ready
+let peerClient;
+let signalStr;
 
 // FUNCTIONS --------------------------------------------------------------------------------------
 
@@ -33,48 +37,103 @@ function askForInput(promptStr, callback){
     });
 }
 
-// P2P STUFF --------------------------------------------------------------------------------------
+function sendDiscordMessage(msg){
+    fetch(`https://discordapp.com/api/channels/${config.discordChannelId}/messages`, {
+        method: 'post',
+        body: JSON.stringify({
+            content: msg
+        }),
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bot ${config.discordClientBot.token}`
+        }
+    }).then((res) => {
+        console.log('MESSAGE SENT ---------------');
+        //console.log(res);
+    });
+}
 
-peerClient.on('error', (err) => {
-    console.log('ERROR --------------------------');
-    console.log(err);
+// SIGNALLING -------------------------------------------------------------------------------------
+// Using Discord
+
+const discordClient = new Discord.Client();
+
+discordClient.on('ready', () => {
+    console.log('DISCORD READY ------------------');
+    console.log(`User: ${discordClient.user.tag}`);
+    console.log(`Channels: ${discordClient.channels.array()}`);
+
+    // We have to make sure that the Discord stuff is ready before we can generate the signal
+    // string and try to send it over discord
+    runP2PStuff()
 });
 
-peerClient.on('signal', (signalData) => {
-    console.log('SIGNAL -------------------------');
-    console.log(JSON.stringify(signalData))//.replace(/\\r\\n/g, ' '));
+discordClient.on('message', (msg) => {
+    console.log('DISCORD MESSAGE ----------------');
+    console.log(msg.content);
 
-    askForInput('Enter server peer signal string: ', (data) => {
-        console.log('GOT SIGNAL -----------------');
-        const dataObj = JSON.parse(data);
+    if (msg.author.tag === config.discordServerBot.tag){
+        const dataObj = JSON.parse(msg.content);
         console.log(dataObj);
         peerClient.signal(dataObj);
-    });
+    }
 });
 
-peerClient.on('connect', () => {
-    console.log('CONNECT ------------------------');
-});
+discordClient.login(config.discordClientBot.token);
 
-peerClient.on('data', (data) => {
-    console.log('> ' + data + '\n');
-    askForInput('< ', (data) => {
-        peerClient.send(data);
+// P2P STUFF --------------------------------------------------------------------------------------
+
+function runP2PStuff(){
+    peerClient = new Peer({
+        initiator: true,
+        wrtc: wrtc,
+        trickle: false
     });
-});
+    
+    peerClient.on('error', (err) => {
+        console.log('ERROR --------------------------');
+        console.log(err);
+    });
+    
+    peerClient.on('signal', (signalData) => {
+        console.log('SIGNAL -------------------------');
+        signalStr = JSON.stringify(signalData);
+        
+        console.log(signalStr);
+
+        // Initiate the message
+        sendDiscordMessage(signalStr);
+    
+        //askForInput('Enter server peer signal string: ', (data) => {
+        //    console.log('GOT SIGNAL -----------------');
+        //    const dataObj = JSON.parse(data);
+        //    console.log(dataObj);
+        //    peerClient.signal(dataObj);
+        //});
+    });
+    
+    peerClient.on('connect', () => {
+        console.log('CONNECT ------------------------');
+    });
+    
+    peerClient.on('data', (data) => {
+        // Ask for user input for simple testing
+        console.log('> ' + data + '\n');
+        askForInput('< ', (data) => {
+            peerClient.send(data);
+        });
+    });
+}
 
 // HTTP SERVER ------------------------------------------------------------------------------------
 
 server.listen(HTTP_PORT, (err) => {
     if (err) console.log('ERROR: ' + err);
-    console.log(`DAT client running on ${HTTP_PORT}`);
+    console.log(`p2pvpn running on ${HTTP_PORT}`);
 });
 
 // Catch all REST calls to this port
 server.all('*', (req, res, next) => {
     console.log(req.url);
-
-    const stream = datObj.archive.createWriteStream('abc');
-    req.pipe(stream);
     res.send(req.url);
 });
