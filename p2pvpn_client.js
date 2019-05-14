@@ -50,7 +50,7 @@ const discordClient = new Discord.Client();
 
 discordClient.on('ready', () => {
     console.log('Discord ready');
-    runP2PStuff()
+    peerClient = setupP2PStuff()
 });
 
 discordClient.on('message', (msg) => {
@@ -68,23 +68,42 @@ discordClient.login(config.discordClientBot.token);
 
 // P2P STUFF --------------------------------------------------------------------------------------
 
-function runP2PStuff(){
-    peerClient = new Peer({
+function setupP2PStuff(){
+    const peer = new Peer({
         initiator: true,
         wrtc: wrtc,
         trickle: false
     });
-    
-    peerClient.on('error', (err) => {
+    const requestCallbacks = {};
+    let requestCallIdCount = 0;
+
+    // Add a new function to the peer object to send requests to server and be able to send
+    // the results back to the appropriate caller through the 'callback'
+    // If 'data' is supposed to be a JSON object then don't stringify it. Just pass it in as a
+    // normal object
+    peer.sendForResult = (data, callback) => {
+        console.log(data);
+
+        // Housekeeping to keep track of which callback is attached with which request
+        requestCallIdCount += 1;
+        requestCallbacks[requestCallIdCount] = callback;
+
+        peer.send(JSON.stringify({
+            id: requestCallIdCount,
+            request: data
+        }));
+    }
+
+    peer.on('error', (err) => {
         console.log('ERROR ------------------------');
         console.log(err);
     });
 
-    peerClient.on('close', () => {
+    peer.on('close', () => {
         console.log('Connection closed');
     });
     
-    peerClient.on('signal', (signalData) => {
+    peer.on('signal', (signalData) => {
         console.log('Signal generated');
         const signalStr = JSON.stringify(signalData);
 
@@ -92,17 +111,22 @@ function runP2PStuff(){
         sendDiscordMessage(signalStr, (res) => {console.log('Signal string sent to server')});
     });
     
-    peerClient.on('connect', () => {
+    peer.on('connect', () => {
         console.log('CONNECTED --------------------');
     });
     
-    peerClient.on('data', (data) => {
-        // Ask for user input for simple testing
-        console.log('> ' + data + '\n');
-        askForInput('< ', (data) => {
-            peerClient.send(data);
-        });
+    peer.on('data', (data) => {
+        try {
+            // All valid results should be JSON objects
+            data = JSON.parse(data);
+            requestCallbacks[data.id](data.result);
+        } catch(e) {
+            // The resturned string was probably not a JSON object so just console.log it
+            console.log('> ' + data + '\n');
+        }
     });
+
+    return peer;
 }
 
 // HTTP SERVER ------------------------------------------------------------------------------------
@@ -114,8 +138,12 @@ server.listen(HTTP_PORT, (err) => {
 
 // Catch all REST calls to this port
 server.all('*', (req, res, next) => {
-    console.log(req.url);
-    res.send(req.url);
+    console.log('url: ' + req.url);
+
+    peerClient.sendForResult(req.url, (result) => {
+        console.log(result);
+        res.send(result);
+    });
 });
 
 // MISC -------------------------------------------------------------------------------------------
@@ -129,5 +157,6 @@ process.on('exit', () => {
 process.on('SIGINT', () => {
     console.log('Ctrl+c: EXITING ----------------');
     peerClient.destroy();
+    peerClient.sendForResult('Sending for result');
     process.exit();
 });
