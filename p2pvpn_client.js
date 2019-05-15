@@ -82,8 +82,6 @@ function setupP2PStuff(){
     // If 'data' is supposed to be a JSON object then don't stringify it. Just pass it in as a
     // normal object
     peer.sendForResult = (data, callback) => {
-        console.log(data);
-
         // Housekeeping to keep track of which callback is attached with which request
         requestCallIdCount += 1;
         requestCallbacks[requestCallIdCount] = callback;
@@ -138,11 +136,18 @@ server.listen(HTTP_PORT, (err) => {
 
 // Catch all REST calls to this port
 server.all('*', (req, res, next) => {
-    console.log('url: ' + req.url);
+    console.log('url: ' + req.originalUrl);
 
-    peerClient.sendForResult(req.url, (result) => {
+    peerClient.sendForResult({
+        path: req.originalUrl,
+        parameters: {
+            method: req.method,
+            headers: req.headers,
+            body: req.body
+        }
+    }, (result) => {
         console.log(result);
-        res.send(result);
+        res.send(result.body);
     });
 });
 
@@ -157,6 +162,5 @@ process.on('exit', () => {
 process.on('SIGINT', () => {
     console.log('Ctrl+c: EXITING ----------------');
     peerClient.destroy();
-    peerClient.sendForResult('Sending for result');
     process.exit();
 });
