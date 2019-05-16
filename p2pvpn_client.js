@@ -114,14 +114,17 @@ function setupP2PStuff(){
     });
     
     peer.on('data', (data) => {
+        let result = data;
         try {
             // All valid results should be JSON objects
             data = JSON.parse(data);
-            requestCallbacks[data.id](data.result);
+            result = data.result;
+
+            delete result.headers['content-encoding'];
         } catch(e) {
-            // The resturned string was probably not a JSON object so just console.log it
-            console.log('> ' + data + '\n');
+            result = e;
         }
+        requestCallbacks[data.id](result);
     });
 
     return peer;
@@ -147,17 +150,13 @@ server.all('*', (req, res, next) => {
         }
     }, (result) => {
         console.log(result);
-        res.send(result.body);
+
+        res.writeHead(result.code, result.headers);
+        res.end(result.body, 'utf-8');
     });
 });
 
 // MISC -------------------------------------------------------------------------------------------
-
-process.on('exit', () => {
-    console.log('EXITING ------------------------');
-    peerClient.destroy();
-    process.exit();
-});
 
 process.on('SIGINT', () => {
     console.log('Ctrl+c: EXITING ----------------');
