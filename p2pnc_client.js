@@ -66,7 +66,7 @@ discordClient.on('ready', () => {
 });
 
 discordClient.on('message', (msg) => {
-    if (peerClient && msg.author.tag === config.discordServerBot.tag){
+    if (peerClient && !peerClient.connected && msg.author.tag === config.discordServerBot.tag){
         const dataObj = JSON.parse(msg.content);
 
         console.log('Discord message received from server');
@@ -95,6 +95,10 @@ function setupP2PStuff(){
 
     peer.on('close', () => {
         console.log('Connection closed');
+
+        // TODO Close the TCP port that we were listening to
+
+        process.exit();
     });
     
     peer.on('signal', (signalData) => {
@@ -135,6 +139,4 @@ process.on('SIGINT', () => {
     console.log('Ctrl+c: EXITING ----------------');
     peerClient.destroy();
     process.exit();
-
-    // TODO Close the TCP port that we were listening to
 });
