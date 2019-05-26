@@ -10,9 +10,9 @@
   "license": "ISC",
   "dependencies": {
     "discord.js": "^11.5.0",
-    "express": "^4.16.4",
+    "docopt": "^0.6.2",
+    "netcat": "^1.4.0",
     "node-fetch": "^2.5.0",
-    "simple-encryptor": "^3.0.0",
     "simple-peer": "^9.3.0",
     "wrtc": "^0.4.0"
   }

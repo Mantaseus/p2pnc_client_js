@@ -1,13 +1,25 @@
 const path = require('path');
 
+const docopt = require('docopt').docopt;
+
 const config = require('./config.json');
 
 const wrtc = require('wrtc');
 const Peer = require('simple-peer');
 
 const Discord = require('discord.js');
-const server = require('express')();
 const fetch = require('node-fetch');
+
+// PARSE COMMAND LINE ARGUMENTS -------------------------------------------------------------------
+
+const doc = `
+Usage:
+    ${path.basename(__filename)} <localPort> <serverPort>
+    ${path.basename(__filename)} -h | --help
+`
+
+const args = docopt(doc);
+console.log(args);
 
 // GLOBALS ----------------------------------------------------------------------------------------
 
@@ -74,23 +86,7 @@ function setupP2PStuff(){
         wrtc: wrtc,
         trickle: false
     });
-    const requestCallbacks = {};
-    let requestCallIdCount = 0;
-
-    // Add a new function to the peer object to send requests to server and be able to send
-    // the results back to the appropriate caller through the 'callback'
-    // If 'data' is supposed to be a JSON object then don't stringify it. Just pass it in as a
-    // normal object
-    peer.sendForResult = (data, callback) => {
-        // Housekeeping to keep track of which callback is attached with which request
-        requestCallIdCount += 1;
-        requestCallbacks[requestCallIdCount] = callback;
-
-        peer.send(JSON.stringify({
-            id: requestCallIdCount,
-            request: data
-        }));
-    }
+    const serverPortConnected = false;
 
     peer.on('error', (err) => {
         console.log('ERROR ------------------------');
@@ -111,50 +107,27 @@ function setupP2PStuff(){
     
     peer.on('connect', () => {
         console.log('CONNECTED --------------------');
+        
+        // Tell the server to connect to a TCP port on the server's local machine
+        peer.send(`p:${args['<serverPort>']}`);
     });
     
-    peer.on('data', (data) => {
-        let result = data;
-        try {
-            // All valid results should be JSON objects
-            data = JSON.parse(data);
-            result = data.result;
+    peer.on('data', (chunk) => {
+        console.log(chunk);
+        if (!serverPortConnected && chunk === 'ok'){
+            // The server tells us that it has connected to the port that the user requested and is
+            // ready to forward the p2p data stream to it
 
-            delete result.headers['content-encoding'];
-        } catch(e) {
-            result = e;
+            // TODO Listen to the TCP port requested by the user on the client local machine
+
+            // TODO Pipe the stream from the client TCP port to the p2p stream
+
+            serverPortConnected = true;
         }
-        requestCallbacks[data.id](result);
     });
 
     return peer;
 }
-
-// HTTP SERVER ------------------------------------------------------------------------------------
-
-server.listen(HTTP_PORT, (err) => {
-    if (err) console.log('ERROR: ' + err);
-    console.log(`p2pvpn running on ${HTTP_PORT}`);
-});
-
-// Catch all REST calls to this port
-server.all('*', (req, res, next) => {
-    console.log('url: ' + req.originalUrl);
-
-    peerClient.sendForResult({
-        path: req.originalUrl,
-        parameters: {
-            method: req.method,
-            headers: req.headers,
-            body: req.body
-        }
-    }, (result) => {
-        console.log(result);
-
-        res.writeHead(result.code, result.headers);
-        res.end(result.body, 'utf-8');
-    });
-});
 
 // MISC -------------------------------------------------------------------------------------------
 
@@ -162,4 +135,6 @@ process.on('SIGINT', () => {
     console.log('Ctrl+c: EXITING ----------------');
     peerClient.destroy();
     process.exit();
+
+    // TODO Close the TCP port that we were listening to
 });
