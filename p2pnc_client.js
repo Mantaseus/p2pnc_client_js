@@ -118,7 +118,7 @@ function setupP2PStuff(){
     });
     
     peer.on('data', (chunk) => {
-        //console.log(''+chunk);
+        console.log(''+chunk);
         if (serverPortConnected) return 
 
         chunk = '' + chunk;
@@ -127,8 +127,13 @@ function setupP2PStuff(){
             // ready to forward the p2p data stream to it
 
             // Listen to the TCP port requested by the user on the client local machine
-            const nc = new NetcatServer();
-            nc.port(parseInt(args['<localPort>'])).serve(peer).k().listen().pipe(peer);
+            const netcat = new NetcatServer();
+            netcat
+                .port(parseInt(args['<localPort>']))
+                .serve(peer)
+                .k()
+                .listen()
+                .pipe(peer);
 
             serverPortConnected = true;
             console.log(`Listening on port ${args['<localPort>']}`);
