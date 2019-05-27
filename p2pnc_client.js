@@ -1,6 +1,7 @@
 const path = require('path');
 
 const docopt = require('docopt').docopt;
+const NetcatServer = require('netcat/server');
 
 const config = require('./config.json');
 
@@ -86,7 +87,7 @@ function setupP2PStuff(){
         wrtc: wrtc,
         trickle: false
     });
-    const serverPortConnected = false;
+    let serverPortConnected = false;
 
     peer.on('error', (err) => {
         console.log('ERROR ------------------------');
@@ -117,16 +118,22 @@ function setupP2PStuff(){
     });
     
     peer.on('data', (chunk) => {
-        console.log(chunk);
-        if (!serverPortConnected && chunk === 'ok'){
+        //console.log(''+chunk);
+        if (serverPortConnected) return 
+
+        chunk = '' + chunk;
+        if (chunk === 'ok'){
             // The server tells us that it has connected to the port that the user requested and is
             // ready to forward the p2p data stream to it
 
-            // TODO Listen to the TCP port requested by the user on the client local machine
-
-            // TODO Pipe the stream from the client TCP port to the p2p stream
+            // Listen to the TCP port requested by the user on the client local machine
+            const nc = new NetcatServer();
+            nc.port(parseInt(args['<localPort>'])).serve(peer).k().listen().pipe(peer);
 
             serverPortConnected = true;
+            console.log(`Listening on port ${args['<localPort>']}`);
+        } else {
+            console.log(chunk);
         }
     });
 
