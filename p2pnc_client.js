@@ -1,7 +1,7 @@
 const path = require('path');
 
 const docopt = require('docopt').docopt;
-const NetcatServer = require('netcat/server');
+const net = require('net');
 
 const config = require('./config.json');
 
@@ -118,27 +118,33 @@ function setupP2PStuff(){
     });
     
     peer.on('data', (chunk) => {
-        console.log(''+chunk);
+        console.log('Peer data: '+chunk);
         if (serverPortConnected) return 
 
         chunk = '' + chunk;
         if (chunk === 'ok'){
             // The server tells us that it has connected to the port that the user requested and is
             // ready to forward the p2p data stream to it
+            console.log(`Server connected to port ${args['<serverPort>']}`);
 
-            // Listen to the TCP port requested by the user on the client local machine
-            const netcat = new NetcatServer();
-            netcat
-                .port(parseInt(args['<localPort>']))
-                .serve(peer)
-                .k()
-                .listen()
-                .pipe(peer);
+            const tcpServer = new net.createServer((socket) => {
+                console.log('TCP Client connected');
 
-            serverPortConnected = true;
-            console.log(`Listening on port ${args['<localPort>']}`);
+                socket.pipe(peer, {end: false});
+                peer.pipe(socket);
+
+                socket.setKeepAlive(true);
+                //socket.on('data', (tcpChunk) => { console.log('TCP data: ' + tcpChunk) });
+                socket.on('end', () => { console.log(`TCP port ${args['<localPort>']} ended`) });
+            })
+            tcpServer.listen(args['<localPort>'], () => {
+                serverPortConnected = true;
+                console.log(`Listening on port ${args['<localPort>']}`);
+            });
+
+            tcpServer.on('error', (err) => { console.log('TCP Error: ' + err) });
         } else {
-            console.log(chunk);
+            console.log('Odd chunk: ' + chunk);
         }
     });
 
