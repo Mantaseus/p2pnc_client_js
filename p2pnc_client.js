@@ -96,9 +96,6 @@ function setupP2PStuff(){
 
     peer.on('close', () => {
         console.log('Connection closed');
-
-        // TODO Close the TCP port that we were listening to
-
         process.exit();
     });
     
@@ -118,7 +115,6 @@ function setupP2PStuff(){
     });
     
     peer.on('data', (chunk) => {
-        console.log('Peer data: '+chunk);
         if (serverPortConnected) return 
 
         chunk = '' + chunk;
@@ -134,7 +130,6 @@ function setupP2PStuff(){
                 peer.pipe(socket);
 
                 socket.setKeepAlive(true);
-                //socket.on('data', (tcpChunk) => { console.log('TCP data: ' + tcpChunk) });
                 socket.on('end', () => { console.log(`TCP port ${args['<localPort>']} ended`) });
             })
             tcpServer.listen(args['<localPort>'], () => {
@@ -142,9 +137,14 @@ function setupP2PStuff(){
                 console.log(`Listening on port ${args['<localPort>']}`);
             });
 
-            tcpServer.on('error', (err) => { console.log('TCP Error: ' + err) });
+            tcpServer.on('error', (err) => { 
+                console.log('TCP Error: ' + err) 
+                peer.destroy();
+            });
         } else {
-            console.log('Odd chunk: ' + chunk);
+            // peer server was not able to setup a TCP port connection to the desired port
+            console.log(chunk);
+            peer.destroy();
         }
     });
 
