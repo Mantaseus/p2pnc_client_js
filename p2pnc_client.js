@@ -24,8 +24,6 @@ console.log(args);
 
 // GLOBALS ----------------------------------------------------------------------------------------
 
-const HTTP_PORT = 2098;
-
 // This will be initialized later once the signalling stuff is ready
 let peerClient;
 
@@ -90,8 +88,7 @@ function setupP2PStuff(){
     let serverPortConnected = false;
 
     peer.on('error', (err) => {
-        console.log('ERROR ------------------------');
-        console.log(err);
+        console.log('Peer error: ' + err);
     });
 
     peer.on('close', () => {
@@ -108,7 +105,7 @@ function setupP2PStuff(){
     });
     
     peer.on('connect', () => {
-        console.log('CONNECTED --------------------');
+        console.log('Peer connected');
         
         // Tell the server to connect to a TCP port on the server's local machine
         peer.send(`p:${args['<serverPort>']}`);
@@ -121,20 +118,21 @@ function setupP2PStuff(){
         if (chunk === 'ok'){
             // The server tells us that it has connected to the port that the user requested and is
             // ready to forward the p2p data stream to it
-            console.log(`Server connected to port ${args['<serverPort>']}`);
+            console.log(`Peer server listening on port ${args['<serverPort>']}`);
 
             const tcpServer = new net.createServer((socket) => {
-                console.log('TCP Client connected');
+                console.log(`Something connected to local port ${args['<localPort>']}`);
 
                 socket.pipe(peer, {end: false});
                 peer.pipe(socket);
 
                 socket.setKeepAlive(true);
-                socket.on('end', () => { console.log(`TCP port ${args['<localPort>']} ended`) });
+                socket.on('end', () => { console.log(`TCP socket connection ended`) });
+                socket.on('error', (err) => { console.log('TCP socket error: ' + err) });
             })
             tcpServer.listen(args['<localPort>'], () => {
                 serverPortConnected = true;
-                console.log(`Listening on port ${args['<localPort>']}`);
+                console.log(`Peer client listening on port ${args['<localPort>']}`);
             });
 
             tcpServer.on('error', (err) => { 
