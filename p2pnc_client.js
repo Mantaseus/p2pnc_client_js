@@ -1,4 +1,5 @@
 const path = require('path');
+const randomBytes = require('randombytes');
 
 const docopt = require('docopt').docopt;
 const net = require('net');
@@ -109,6 +110,8 @@ function setupP2PStuff(){
         
         // Tell the server to connect to a TCP port on the server's local machine
         peer.send(`p:${args['<serverPort>']}`);
+
+        console.log(peer._channel.bufferedAmountLowThreshold);
     });
     
     peer.on('data', (chunk) => {
@@ -123,12 +126,36 @@ function setupP2PStuff(){
             const tcpServer = new net.createServer((socket) => {
                 console.log(`Something connected to local port ${args['<localPort>']}`);
 
-                socket.pipe(peer, {end: false});
-                peer.pipe(socket);
+                // Create a new data channel on the peer with a random name
+                const dataChannel = peer._pc.createDataChannel('custom_' + randomBytes(20).toString('hex'))
+                dataChannel.binaryType = 'arraybuffer';
+                dataChannel.onmessage = (event) => {
+                    const chunk = Buffer.from(event.data);
+                    socket.write(chunk);
+                }
+                dataChannel.onclose = () => {
+                    console.log('data channel closed');
+                }
+                dataChannel.onerror = (err) => {
+                    console.log('data channel error: ' + err);
+                }
 
+                // Setup the socket to the use the data from the p2p data channel
                 socket.setKeepAlive(true);
-                socket.on('end', () => { console.log(`TCP socket connection ended`) });
-                socket.on('error', (err) => { console.log('TCP socket error: ' + err) });
+                socket.on('data', (chunk) => {
+                    dataChannel.send(chunk);
+                });
+                socket.on('end', () => { 
+                    console.log(`TCP socket connection ended`) 
+                    dataChannel.close();
+                });
+                socket.on('close', () => {
+                    console.log('TCP socket connection closed');
+                    dataChannel.close();
+                });
+                socket.on('error', (err) => { 
+                    console.log('TCP socket error: ' + err) 
+                });
             })
             tcpServer.listen(args['<localPort>'], () => {
                 serverPortConnected = true;
