@@ -25,6 +25,11 @@ console.log(args);
 
 // GLOBALS ----------------------------------------------------------------------------------------
 
+// To prevent data channel duffer of 16Mb from getting filled up which causes the data channel to
+// completely stop working
+const MAX_DATA_CHANNEL_BUFFER_SIZE = 2 * 1024 * 1024; // 2Mb
+const DATA_CHANNEL_LOW_CHECK_INTERVAL = 100; // milliseconds
+
 // This will be initialized later once the signalling stuff is ready
 let peerClient;
 
@@ -143,7 +148,32 @@ function setupP2PStuff(){
                 // Setup the socket to the use the data from the p2p data channel
                 socket.setKeepAlive(true);
                 socket.on('data', (chunk) => {
-                    dataChannel.send(chunk);
+                    // Protect the data channel buffer from getting filled up
+                    if (dataChannel.bufferedAmount < MAX_DATA_CHANNEL_BUFFER_SIZE){
+                        try {
+                            dataChannel.send(chunk);
+                        } catch(e) {
+                            console.log(e);
+                            tcpClient.end();
+                        }   
+                    } else {
+                        tcpClient.pause();
+
+                        // Check the bufferedAmount until it goes acceptably low
+                        const bufferCheckInterval = setInterval(() => {
+                            if (dataChannel.bufferedAmount === 0){ 
+                                try {
+                                    dataChannel.send(chunk);
+                                } catch(e) {
+                                    console.log(e);
+                                    tcpClient.end();
+                                }   
+                                clearInterval(bufferCheckInterval);
+                                tcpClient.resume();
+                            }   
+                        }, DATA_CHANNEL_LOW_CHECK_INTERVAL);
+                    }   
+
                 });
                 socket.on('end', () => { 
                     console.log(`TCP socket connection ended`) 
