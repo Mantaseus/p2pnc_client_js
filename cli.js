@@ -14,16 +14,28 @@ const Peer = require('simple-peer');
 const Discord = require('discord.js');
 const fetch = require('node-fetch');
 
+// Add a timestamp to the front of all console logs
+require('log-timestamp');
+
 // PARSE COMMAND LINE ARGUMENTS -------------------------------------------------------------------
 
 const doc = `
 Usage:
     ${path.basename(__filename)} <localPort> <serverPort>
+        [ -v | --verbose ]
+        [ -s | --print-sdp-strings ]
     ${path.basename(__filename)} -h | --help
+
+Options:
+    -v, --verbose
+        print out extra information about events that happen
+    -s, --print-sdp-strings
+        print the raw SDP strings that are exchanged at the
+        start of the connection
 `
 
 const args = docopt(doc);
-console.log(args);
+console.log(args)
 
 // GLOBALS ----------------------------------------------------------------------------------------
 
@@ -62,13 +74,20 @@ function sendDiscordMessage(msg, callback){
     }).then((res) => { callback(res) });
 }
 
+function printSDP(sdp) {
+    const jsonObj = JSON.parse(String(sdp));
+    //const stringToPrint = `SDP ${jsonObj.type}: \n${jsonObj.sdp}`
+    console.log(`SDP ${jsonObj.type}: \n    ${jsonObj.sdp.replace(/\n/g, '\n    ')}`);
+}
+
 // SIGNALLING -------------------------------------------------------------------------------------
 // Using Discord
 
 const discordClient = new Discord.Client();
 
 discordClient.on('ready', () => {
-    console.log('Discord ready');
+    if (args['--verbose'])
+        console.log('Discord ready');
     peerClient = setupP2PStuff()
 });
 
@@ -76,8 +95,11 @@ discordClient.on('message', (msg) => {
     if (peerClient && !peerClient.connected && msg.author.tag === config.discordServerBot.tag){
         const dataObj = JSON.parse(msg.content);
 
-        console.log('Discord message received from server');
-        console.log(dataObj);
+        if (args['--verbose'])
+            console.log('Discord message received from server');
+
+        if (args['--print-sdp-strings'])
+            printSDP(msg.content);
 
         peerClient.signal(dataObj);
     }
@@ -105,20 +127,27 @@ function setupP2PStuff(){
     });
     
     peer.on('signal', (signalData) => {
-        console.log('Signal generated');
+        if (args['--verbose'])
+            console.log('Signal generated');
+
         const signalStr = JSON.stringify(signalData);
 
+        if (args['--print-sdp-strings'])
+            printSDP(signalStr)
+
         // Initiate the message
-        sendDiscordMessage(signalStr, (res) => {console.log('Signal string sent to server')});
+        sendDiscordMessage(signalStr, (res) => {
+            if (args['--verbose'])
+                console.log('Signal string sent to server')}
+        );
     });
     
     peer.on('connect', () => {
-        console.log('Peer connected');
+        if (args['--verbose'])
+            console.log('Peer connected');
         
         // Tell the server to connect to a TCP port on the server's local machine
         peer.send(`p:${args['<serverPort>']}`);
-
-        console.log(peer._channel.bufferedAmountLowThreshold);
     });
     
     peer.on('data', (chunk) => {
@@ -131,7 +160,8 @@ function setupP2PStuff(){
             console.log(`Peer server listening on port ${args['<serverPort>']}`);
 
             const tcpServer = new net.createServer((socket) => {
-                console.log(`Something connected to local port ${args['<localPort>']}`);
+                if (args['--verbose'])
+                    console.log(`Something connected to local port ${args['<localPort>']}`);
 
                 // Create a new data channel on the peer with a random name
                 const dataChannel = peer._pc.createDataChannel('custom_' + randomBytes(20).toString('hex'))
@@ -141,7 +171,8 @@ function setupP2PStuff(){
                     socket.write(chunk);
                 }
                 dataChannel.onclose = () => {
-                    console.log('data channel closed');
+                    if (args['--verbose'])
+                        console.log('data channel closed');
                 }
                 dataChannel.onerror = (err) => {
                     console.log('data channel error: ' + err);
@@ -178,11 +209,13 @@ function setupP2PStuff(){
 
                 });
                 socket.on('end', () => { 
-                    console.log(`TCP socket connection ended`) 
+                    if (args['--verbose'])
+                        console.log(`TCP socket connection ended`) 
                     dataChannel.close();
                 });
                 socket.on('close', () => {
-                    console.log('TCP socket connection closed');
+                    if (args['--verbose'])
+                        console.log('TCP socket connection closed');
                     dataChannel.close();
                 });
                 socket.on('error', (err) => { 
@@ -211,7 +244,8 @@ function setupP2PStuff(){
 // MISC -------------------------------------------------------------------------------------------
 
 process.on('SIGINT', () => {
-    console.log('Ctrl+c: EXITING ----------------');
+    if (args['--verbose'])
+        console.log('Ctrl+c: EXITING');
     peerClient.destroy();
     process.exit();
 });
