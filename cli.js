@@ -14,17 +14,14 @@ const Peer = require('simple-peer');
 const Discord = require('discord.js');
 const fetch = require('node-fetch');
 
-// Add a timestamp to the front of all console logs
-require('log-timestamp');
-
 // PARSE COMMAND LINE ARGUMENTS -------------------------------------------------------------------
 
-const doc = `
+const args = docopt(`
 Usage:
-    ${path.basename(__filename)} <localPort> <serverPort>
+    p2pnc <localPort> <serverPort>
         [ -v | --verbose ]
         [ -s | --print-sdp-strings ]
-    ${path.basename(__filename)} -h | --help
+    p2pnc -h | --help
 
 Options:
     -v, --verbose
@@ -32,10 +29,10 @@ Options:
     -s, --print-sdp-strings
         print the raw SDP strings that are exchanged at the
         start of the connection
-`
+`);
 
-const args = docopt(doc);
-console.log(args)
+// Add a timestamp to the front of all console logs
+require('log-timestamp');
 
 // GLOBALS ----------------------------------------------------------------------------------------
 
