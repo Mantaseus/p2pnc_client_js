@@ -21,6 +21,7 @@ Usage:
     p2pnc <localPort> <serverPort>
         [ -v | --verbose ]
         [ -s | --print-sdp-strings ]
+        [ -m | --manual-signaling ]
     p2pnc -h | --help
 
 Options:
@@ -29,6 +30,14 @@ Options:
     -s, --print-sdp-strings
         print the raw SDP strings that are exchanged at the
         start of the connection
+    -m, --manual-signaling
+        Manualling copy the SDP string from the client program
+        and paste it here rather than trying to use an online
+        messaging service. You will need to have access to the
+        client and the server already to make this work though,
+        so this is only going to be useful for debugging.
+        If this flag is not set then the online messaging services
+        will be used defined
 `);
 
 // Add a timestamp to the front of all console logs
