@@ -1,0 +1,3 @@
+[submodule "p2pnc_messaging"]
+	path = p2pnc_messaging
+	url = ssh://git@sys-ghar:9102/mantaseus/p2pnc_messaging.git

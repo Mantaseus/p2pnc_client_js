@@ -2,26 +2,28 @@
 
 const path = require('path');
 const randomBytes = require('randombytes');
+const net = require('net');
+const fs = require('fs');
 
 const docopt = require('docopt').docopt;
-const net = require('net');
-
-const config = require('./config.json');
-
 const wrtc = require('wrtc');
 const Peer = require('simple-peer');
 
+const config = require('./config.json');
+
+/*
 const Discord = require('discord.js');
 const fetch = require('node-fetch');
+*/
 
 // PARSE COMMAND LINE ARGUMENTS -------------------------------------------------------------------
 
 const args = docopt(`
 Usage:
-    p2pnc <localPort> <serverPort>
+    p2pnc ( <localPort> <serverPort> | -l )
         [ -v | --verbose ]
         [ -s | --print-sdp-strings ]
-        [ -m | --manual-messaging ]
+        [ -m=<val> | --sdp-messenger=<val> ]
     p2pnc -h | --help
 
 Options:
@@ -30,18 +32,13 @@ Options:
     -s, --print-sdp-strings
         print the raw SDP strings that are exchanged at the
         start of the connection
-    -m, --manual-messaging
-        Manualling copy the SDP string from the client program
-        and paste it here rather than trying to use an online
-        messaging service. You will need to have access to the
-        client and the server already to make this work though,
-        so this is only going to be useful for debugging.
-        If this flag is not set then the online messaging services
-        will be used defined
+    -l, --list-available-messengers
+        List the messengers that can currently be used with this
+        script
+    -m=<val>, --sdp-messenger
+        Define the messenger to use when running this service
+        [default: discord]
 `);
-
-// Add a timestamp to the front of all console logs
-require('log-timestamp');
 
 // GLOBALS ----------------------------------------------------------------------------------------
 
@@ -50,8 +47,11 @@ require('log-timestamp');
 const MAX_DATA_CHANNEL_BUFFER_SIZE = 2 * 1024 * 1024; // 2Mb
 const DATA_CHANNEL_LOW_CHECK_INTERVAL = 100; // milliseconds
 
+const MESSENGER_DIRECTORY = `${__dirname}/messaging/node`;
+
 // This will be initialized later once the signalling stuff is ready
 let peerClient;
+let messenger;
 
 // FUNCTIONS --------------------------------------------------------------------------------------
 
@@ -67,6 +67,13 @@ function askForInput(promptStr, callback){
     });
 }
 
+function printSDP(sdp) {
+    const jsonObj = JSON.parse(String(sdp));
+    //const stringToPrint = `SDP ${jsonObj.type}: \n${jsonObj.sdp}`
+    console.log(`SDP ${jsonObj.type}: \n    ${jsonObj.sdp.replace(/\n/g, '\n    ')}`);
+}
+
+/*
 function sendDiscordMessage(msg, callback){
     fetch(`https://discordapp.com/api/channels/${config.discordChannelId}/messages`, {
         method: 'post',
@@ -79,16 +86,12 @@ function sendDiscordMessage(msg, callback){
         }
     }).then((res) => { callback(res) });
 }
-
-function printSDP(sdp) {
-    const jsonObj = JSON.parse(String(sdp));
-    //const stringToPrint = `SDP ${jsonObj.type}: \n${jsonObj.sdp}`
-    console.log(`SDP ${jsonObj.type}: \n    ${jsonObj.sdp.replace(/\n/g, '\n    ')}`);
-}
+*/
 
 // SIGNALLING -------------------------------------------------------------------------------------
 // Using Discord
 
+/*
 const discordClient = new Discord.Client();
 
 discordClient.on('ready', () => {
@@ -112,6 +115,7 @@ discordClient.on('message', (msg) => {
 });
 
 discordClient.login(config.discordClientBot.token);
+*/
 
 // P2P STUFF --------------------------------------------------------------------------------------
 
@@ -252,11 +256,35 @@ function setupP2PStuff(){
     return peer;
 }
 
-// MISC -------------------------------------------------------------------------------------------
+// MAIN -------------------------------------------------------------------------------------------
+
+if (args['--list-available-messengers']) {
+    console.log('Available messengers');
+
+    fs.readdirSync(MESSENGER_DIRECTORY).forEach(fileName => {
+        console.log(`    ${fileName.replace(/.js$/, '')}`);
+    })
+
+    process.exit();
+}
+
+// Add a timestamp to the front of all console logs
+require('log-timestamp');
+
+if (args['--sdp-messenger']) {
+    console.log(`Using messenger ${args['sdp-messenger']}`);
+    process.exit();
+}
 
 process.on('SIGINT', () => {
     if (args['--verbose'])
         console.log('Ctrl+c: EXITING');
-    peerClient.destroy();
+
+    if (!peerClient)
+        peerClient.destroy();
+
+    if (!messenger)
+        messenger.stopListening();
+
     process.exit();
 });
