@@ -21,7 +21,7 @@ Usage:
     p2pnc <localPort> <serverPort>
         [ -v | --verbose ]
         [ -s | --print-sdp-strings ]
-        [ -m | --manual-signaling ]
+        [ -m | --manual-messaging ]
     p2pnc -h | --help
 
 Options:
@@ -30,7 +30,7 @@ Options:
     -s, --print-sdp-strings
         print the raw SDP strings that are exchanged at the
         start of the connection
-    -m, --manual-signaling
+    -m, --manual-messaging
         Manualling copy the SDP string from the client program
         and paste it here rather than trying to use an online
         messaging service. You will need to have access to the
@@ -138,14 +138,19 @@ function setupP2PStuff(){
 
         const signalStr = JSON.stringify(signalData);
 
-        if (args['--print-sdp-strings'])
-            printSDP(signalStr)
+        if (args['--manual-messaging']){
+            console.log('Copy the following SDP string and paste it in the server');
+            console.log(signalString);
+        } else {
+            if (args['--print-sdp-strings'])
+                printSDP(signalStr)
 
-        // Initiate the message
-        sendDiscordMessage(signalStr, (res) => {
-            if (args['--verbose'])
-                console.log('Signal string sent to server')}
-        );
+            // Initiate the message
+            sendDiscordMessage(signalStr, (res) => {
+                if (args['--verbose'])
+                    console.log('Signal string sent to server')}
+            );
+        }
     });
     
     peer.on('connect', () => {
