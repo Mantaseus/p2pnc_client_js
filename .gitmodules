@@ -1,0 +1,3 @@
+[submodule "p2pnc_messaging"]
+	path = p2pnc_messaging
+	url = git@github.com:Mantaseus/p2pnc_messaging.git
