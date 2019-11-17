@@ -11,11 +11,6 @@ const Peer = require('simple-peer');
 
 const config = require('./config.json');
 
-/*
-const Discord = require('discord.js');
-const fetch = require('node-fetch');
-*/
-
 // PARSE COMMAND LINE ARGUMENTS -------------------------------------------------------------------
 
 const args = docopt(`
@@ -47,7 +42,7 @@ Options:
 const MAX_DATA_CHANNEL_BUFFER_SIZE = 2 * 1024 * 1024; // 2Mb
 const DATA_CHANNEL_LOW_CHECK_INTERVAL = 100; // milliseconds
 
-const MESSENGER_DIRECTORY = `${__dirname}/messaging/node`;
+const MESSENGER_DIRECTORY = `${__dirname}/p2pnc_messaging/node`;
 
 // This will be initialized later once the signalling stuff is ready
 let peerClient;
@@ -72,50 +67,6 @@ function printSDP(sdp) {
     //const stringToPrint = `SDP ${jsonObj.type}: \n${jsonObj.sdp}`
     console.log(`SDP ${jsonObj.type}: \n    ${jsonObj.sdp.replace(/\n/g, '\n    ')}`);
 }
-
-/*
-function sendDiscordMessage(msg, callback){
-    fetch(`https://discordapp.com/api/channels/${config.discordChannelId}/messages`, {
-        method: 'post',
-        body: JSON.stringify({
-            content: msg
-        }),
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bot ${config.discordClientBot.token}`
-        }
-    }).then((res) => { callback(res) });
-}
-*/
-
-// SIGNALLING -------------------------------------------------------------------------------------
-// Using Discord
-
-/*
-const discordClient = new Discord.Client();
-
-discordClient.on('ready', () => {
-    if (args['--verbose'])
-        console.log('Discord ready');
-    peerClient = setupP2PStuff()
-});
-
-discordClient.on('message', (msg) => {
-    if (peerClient && !peerClient.connected && msg.author.tag === config.discordServerBot.tag){
-        const dataObj = JSON.parse(msg.content);
-
-        if (args['--verbose'])
-            console.log('Discord message received from server');
-
-        if (args['--print-sdp-strings'])
-            printSDP(msg.content);
-
-        peerClient.signal(dataObj);
-    }
-});
-
-discordClient.login(config.discordClientBot.token);
-*/
 
 // P2P STUFF --------------------------------------------------------------------------------------
 
@@ -150,7 +101,7 @@ function setupP2PStuff(){
                 printSDP(signalStr)
 
             // Initiate the message
-            sendDiscordMessage(signalStr, (res) => {
+            messenger.sendMessage(signalStr, (res) => {
                 if (args['--verbose'])
                     console.log('Signal string sent to server')}
             );
@@ -268,12 +219,46 @@ if (args['--list-available-messengers']) {
     process.exit();
 }
 
-// Add a timestamp to the front of all console logs
-require('log-timestamp');
-
 if (args['--sdp-messenger']) {
-    console.log(`Using messenger ${args['sdp-messenger']}`);
-    process.exit();
+    const messengerScript = `${MESSENGER_DIRECTORY}/${args['--sdp-messenger']}.js`
+    if (!fs.existsSync(messengerScript)) {
+        console.log(`Messenger not found at ${messengerScript}`);
+        process.exit();
+    }
+        
+    // Add a timestamp to the front of all console logs
+    require('log-timestamp');
+
+    // Import messengerScript
+    messenger = require(messengerScript);
+    if (!messenger) {
+        console.log(`Could not load module: ${messengerScript}`);
+        process.exit();
+    }
+
+    // Setup the messenger module
+    console.log(`Using messenger module: ${messengerScript}`);
+    messenger.init(config);
+    messenger.startListening(
+        () => {
+            if (args['--verbose'])
+                console.log('Messenger ready');
+            peerClient = setupP2PStuff()
+        }, 
+        (msg) => {
+            // If the peer client is already connected then do nothing
+            if (!peerClient || peerClient.connected)
+                return;
+
+            if (args['--verbose'])
+                console.log('Discord message received from server');
+
+            if (args['--print-sdp-strings'])
+                printSDP(msg);
+
+            peerClient.signal(JSON.parse(msg));
+        }
+    );
 }
 
 process.on('SIGINT', () => {
