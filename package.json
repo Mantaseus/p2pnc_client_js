@@ -9,13 +9,13 @@
   "author": "Mantaseus",
   "license": "ISC",
   "dependencies": {
-    "discord.js": "^11.5.0",
     "docopt": "^0.6.2",
     "lodash": "^4.17.15",
     "log-timestamp": "^0.3.0",
     "node-fetch": "^2.5.0",
-    "simple-peer": "^9.3.0",
-    "wrtc": "^0.4.0"
+    "peerjs-on-node": "^1.0.2",
+    "randombytes": "^2.1.0",
+    "readline-sync": "^1.4.10"
   },
   "bin": {
     "p2pnc": "./cli.js"
