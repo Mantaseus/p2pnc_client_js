@@ -6,6 +6,7 @@ const net = require('net');
 const fs = require('fs');
 const Writable = require('stream').Writable;
 
+const _ = require('lodash');
 const readlineSync = require('readline-sync');
 const docopt = require('docopt').docopt;
 const Peer = require('peerjs-on-node').Peer;
@@ -39,6 +40,20 @@ let peerClient;
 
 // FUNCTIONS --------------------------------------------------------------------------------------
 
+function printStats(conn) {
+    conn.peerConnection.getStats().then((res) => {
+        const transports = _.filter(Array.from(res.values()), (element) => element.type === 'transport' );
+        _.each(transports, (transport) => {
+            const candidatePair = res.get(transport.selectedCandidatePairId);
+            const localCandidate = res.get(candidatePair.localCandidateId);
+            const remoteCandidate = res.get(candidatePair.remoteCandidateId);
+
+            console.log(`LOCAL: ${localCandidate.protocol} ${localCandidate.ip} ${localCandidate.port}`);
+            console.log(`REMOTE: ${remoteCandidate.protocol} ${remoteCandidate.ip} ${remoteCandidate.port}`);
+        });
+    });
+}
+
 function printSDP(sdp) {
     const jsonObj = JSON.parse(String(sdp));
     //const stringToPrint = `SDP ${jsonObj.type}: \n${jsonObj.sdp}`
@@ -47,10 +62,26 @@ function printSDP(sdp) {
 
 // MAIN -------------------------------------------------------------------------------------------
 
-const peerjsServerId = readlineSync.question('Enter the ID for the remote server: ', { 
-    hideEchoBack: true
-});
-console.log(peerjsServerId);
+let peerjsServerId = ''
+try {
+    // Try to get the peerjsServerId from a config file
+    const config = require('./config.json');
+    peerjsServerId = config.peerjsServerId;
+    if (!peerjsServerId) {
+        throw "config does not have required data";
+    }
+} catch(e) {
+    // Ask the user to manually enter it instead
+    console.log('peerjsServerId not found in the config.json file');
+    peerjsServerId = readlineSync.question('Enter the ID for the remote server: ', { 
+        hideEchoBack: true
+    });
+}
+
+if (!peerjsServerId) {
+    console.log('ERROR: peerjsServerId value is empty. Exiting');
+    process.exit();
+}
 
 const peer = new Peer({debug: 2});
 peer.on('open', () => {
@@ -60,6 +91,7 @@ peer.on('open', () => {
 
     conn.on('open', () => {
         console.log('DATA CONNECTION OPENED');
+        printStats(conn);
 
         // THE MAIN DATA CHANNEL CALLBACKS
 
