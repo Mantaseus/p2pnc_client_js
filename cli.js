@@ -16,11 +16,16 @@ const Peer = require('peerjs-on-node').Peer;
 const args = docopt(`
 Usage:
     p2pnc <localPort> <serverPort>
+        [ -l | --lan ]
         [ -v | --verbose ]
         [ -s | --print-sdp-strings ]
     p2pnc -h | --help
 
 Options:
+    -l, --lan
+        Open the local TCP port such that it is accessable
+        from the local network. If this is not used then the
+        port is only accessable from localhost
     -v, --verbose
         print out extra information about events that happen
     -s, --print-sdp-strings
@@ -179,7 +184,12 @@ peer.on('open', () => {
                         console.log('TCP socket error: ' + err)
                     });
                 })
-                tcpServer.listen(args['<localPort>'], () => {
+
+                const tcpConnectionSettings = {
+                    host: args['--lan'] ? undefined : 'localhost',
+                    port: args['<localPort>'],
+                }
+                tcpServer.listen(tcpConnectionSettings, () => {
                     serverPortConnected = true;
                     console.log(`Peer client listening on port ${args['<localPort>']}`);
                 });
